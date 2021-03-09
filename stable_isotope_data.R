@@ -4,12 +4,14 @@ install.packages("timetk")
 library(dplyr)
 library(tidyverse)
 library(timetk)
+library(miniUI)
+library(shiny)
 
 
 ### test loop for entire folder ###
 session_label <- "ExampleOdata"
 
-setwd(paste0("C:/Users/Jack/Documents/R/", session_label))
+setwd(paste0("D:/R/O_isotope_UI/", session_label))
 #setwd("D:/r/Sr_work/Aug_20")
 
 filename <- list.files(pattern = "*.asc")
@@ -106,5 +108,78 @@ ggplot(aes(x = DateTime, y = O18_O16)) +
   geom_point() +
   geom_errorbar(aes(ymin = O18_O16-(2*O18_O16_1se), ymax = O18_O16+(2*O18_O16_1se))) +
   geom_smooth(data = combined_df %>% filter("91500" == sample) %>% filter_by_time(.start_date = 'start', .end_date = '2021-02-12 15:15:00'), method = lm)
+
+
+
+drift_corr <- function(combined_df){
+  
+  # User interface ----
+  ui <- miniPage(
+    gadgetTitleBar("Drift correction"),
+    
+    miniTabstripPanel(
+      miniTabPanel("Data filtering", icon = icon("map-o"),
+                   miniContentPanel(
+                     plotOutput("cycleplot", height = "100%", click = "point_click", brush = "points_brushed"),
+                     sliderInput("Date_range_selector", "Select Date Range",
+                                           min = min(combined_df$DateTime),
+                                           max = max(combined_df$DateTime),
+                                           value = c(min(combined_df$DateTime), max(combined_df$DateTime)))
+                   ),        
+                   miniButtonBlock(
+                     actionButton("add", "", icon = icon("thumbs-up")),
+                     actionButton("sub", "", icon = icon("thumbs-down")),
+                     #actionButton("none", "", icon = icon("ban")),
+                     actionButton("all", "", icon = icon("refresh"))
+                   )
+      )
+    )
+  )
+  
+  
+  # Server logic ----
+  server <- function(input, output) {
+    
+    vals <- reactiveValues(keep = rep(TRUE, nrow(combined_df))) 
+    
+    output$cycleplot <- renderPlot({
+      
+      exclude <- combined_df[!vals$keep, , drop = FALSE]
+      
+      ggplot(combined_df %>% filter("91500" == sample), aes(x = DateTime, y = O18_O16)) +
+        geom_point() +
+        geom_point(data = exclude, colour = "grey80") +
+        geom_errorbar(aes(ymin = O18_O16-(2*O18_O16_1se), ymax = O18_O16+(2*O18_O16_1se))) +
+        geom_smooth(data = combined_df[vals$keep, , drop = FALSE] %>% filter("91500" == sample) %>% filter_by_time(.start_date = input$Date_range_selector[1], .end_date = input$Date_range_selector[2]), method = lm)
+      
+    })
+    
+    
+    
+    
+    selected <- reactive({
+      #nearPoints(combined_df, input$point_click, maxpoints = 1, allRows = TRUE)$selected_
+      brushedPoints(combined_df, input$points_brushed, allRows = TRUE)$selected_
+    })
+    
+    
+    observeEvent(input$add, vals$keep <- vals$keep | selected())
+    observeEvent(input$sub, vals$keep <- vals$keep & !selected())
+    observeEvent(input$all, vals$keep <- rep(TRUE, nrow(combined_df)))
+    observeEvent(input$none, vals$keep <- rep(FALSE, nrow(combined_df)))
+    
+    observeEvent(input$done, {
+      stopApp(vals$keep)
+    })
+  }
+  
+  
+  # Run app ----
+  runGadget(ui, server)
+  
+}
+
+drift_corr(combined_df)
+
 
               
