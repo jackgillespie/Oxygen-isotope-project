@@ -11,8 +11,8 @@ library(shiny)
 ### test loop for entire folder ###
 session_label <- "ExampleOdata"
 
-setwd(paste0("D:/R/O_isotope_UI/", session_label))
-#setwd("D:/r/Sr_work/Aug_20")
+#setwd(paste0("D:/R/O_isotope_UI/", session_label))
+setwd(paste0("C:/Users/Jack/Documents/R/", session_label))
 
 filename <- list.files(pattern = "*.asc")
 
@@ -120,12 +120,17 @@ drift_corr <- function(combined_df){
     miniTabstripPanel(
       miniTabPanel("Data filtering", icon = icon("map-o"),
                    miniContentPanel(
-                     plotOutput("cycleplot", height = "100%", click = "point_click", brush = "points_brushed"),
+                     fillCol(flex = c(1,NA),
+                        fillRow(flex = c(5,1),
+                          plotOutput("cycleplot", height = "100%", click = "point_click", brush = "points_brushed"),
+                          checkboxInput("drift_corr_check", label = "Drift correction", value = TRUE)),
+                     
+                     #tableOutput("values"),
                      sliderInput("Date_range_selector", "Select Date Range",
-                                           min = min(combined_df$DateTime),
-                                           max = max(combined_df$DateTime),
-                                           value = c(min(combined_df$DateTime), max(combined_df$DateTime)))
-                   ),        
+                        min = min(as.POSIXct(combined_df$DateTime)),
+                        max = max(as.POSIXct(combined_df$DateTime)),
+                        value = c(min(as.POSIXct(combined_df$DateTime)), max(as.POSIXct(combined_df$DateTime))))
+                   )),        
                    miniButtonBlock(
                      actionButton("add", "", icon = icon("thumbs-up")),
                      actionButton("sub", "", icon = icon("thumbs-down")),
@@ -142,20 +147,39 @@ drift_corr <- function(combined_df){
     
     vals <- reactiveValues(keep = rep(TRUE, nrow(combined_df))) 
     
+    
     output$cycleplot <- renderPlot({
       
-      exclude <- combined_df[!vals$keep, , drop = FALSE]
-      
-      ggplot(combined_df %>% filter("91500" == sample), aes(x = DateTime, y = O18_O16)) +
+        p <- ggplot(combined_df %>% filter("91500" == sample), aes(x = DateTime, y = O18_O16)) +
         geom_point() +
-        geom_point(data = exclude, colour = "grey80") +
-        geom_errorbar(aes(ymin = O18_O16-(2*O18_O16_1se), ymax = O18_O16+(2*O18_O16_1se))) +
-        geom_smooth(data = combined_df[vals$keep, , drop = FALSE] %>% filter("91500" == sample) %>% filter_by_time(.start_date = input$Date_range_selector[1], .end_date = input$Date_range_selector[2]), method = lm)
+        geom_point(data = combined_df[!vals$keep, , drop = FALSE], colour = "grey80") +
+        geom_errorbar(aes(ymin = O18_O16-(2*O18_O16_1se), ymax = O18_O16+(2*O18_O16_1se)))
+      
+      if(input$drift_corr_check == TRUE){
+        p +
+        geom_smooth(data = combined_df[vals$keep, , drop = FALSE] %>% filter("91500" == sample) %>% filter_by_time(.date_var = DateTime, .start_date = as.POSIXct(input$Date_range_selector[1]), .end_date = as.POSIXct(input$Date_range_selector[2])), method = lm)
+      }
+      
+      else if(input$drift_corr_check == FALSE){
+      p
+      }
+        
+      else(NULL)
+    })
+    
+sliderValues <- reactive({
+      
+      data.frame(
+        Name = c("Start","End"),
+        Value = as.character(c(as.POSIXct(input$Date_range_selector[1]),as.POSIXct(input$Date_range_selector[2]))),
+        stringsAsFactors = FALSE)
       
     })
     
-    
-    
+    # Show the values in an HTML table ----
+    output$values <- renderTable({
+      sliderValues()
+    })
     
     selected <- reactive({
       #nearPoints(combined_df, input$point_click, maxpoints = 1, allRows = TRUE)$selected_
