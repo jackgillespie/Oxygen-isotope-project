@@ -96,22 +96,17 @@ for (i in 1:length(filename)) {
   combined_df <- rbind(combined_df, read_row)
 }
 
+
+# properly name columns of dataframe and create sample column
 colnames(combined_df) <- c("Spot", "DateTime", "Primary_current", "O18_O16", "O18_O16_1se", "X_pos", "Y_pos")
-
-
 combined_df$sample <- as.factor(gsub('\\@.*','', sub('.*\\-', '', combined_df$Spot)))
 
 
 
-combined_df %>% filter("91500" == sample) %>% 
-ggplot(aes(x = DateTime, y = O18_O16)) +
-  geom_point() +
-  geom_errorbar(aes(ymin = O18_O16-(2*O18_O16_1se), ymax = O18_O16+(2*O18_O16_1se))) +
-  geom_smooth(data = combined_df %>% filter("91500" == sample) %>% filter_by_time(.start_date = 'start', .end_date = '2021-02-12 15:15:00'), method = lm)
 
+## UI function definition
 
-
-drift_corr <- function(combined_df){
+drift_corr_func <- function(combined_df){
   
   # User interface ----
   ui <- miniPage(
@@ -157,7 +152,7 @@ drift_corr <- function(combined_df){
       
       if(input$drift_corr_check == TRUE){
         p +
-        geom_smooth(data = combined_df[vals$keep, , drop = FALSE] %>% filter("91500" == sample) %>% filter_by_time(.date_var = DateTime, .start_date = as.POSIXct(input$Date_range_selector[1]), .end_date = as.POSIXct(input$Date_range_selector[2])), method = lm)
+        geom_smooth(data = combined_df[vals$keep, , drop = FALSE] %>% filter("91500" == sample) %>% filter_by_time(.date_var = DateTime, .start_date = as.POSIXct(input$Date_range_selector[1]), .end_date = as.POSIXct(input$Date_range_selector[2])), formula = y ~ x, method = lm)
       }
       
       else if(input$drift_corr_check == FALSE){
@@ -203,7 +198,9 @@ sliderValues <- reactive({
   
 }
 
-drift_corr(combined_df)
+
+# run UI
+drift_corr_func(combined_df)
 
 
               
