@@ -11,8 +11,8 @@ library(shiny)
 ### test loop for entire folder ###
 session_label <- "ExampleOdata"
 
-#setwd(paste0("D:/R/O_isotope_UI/", session_label))
-setwd(paste0("C:/Users/Jack/Documents/R/", session_label))
+setwd(paste0("D:/R/O_isotope_UI/", session_label))
+#setwd(paste0("C:/Users/Jack/Documents/R/", session_label))
 
 filename <- list.files(pattern = "*.asc")
 
@@ -115,16 +115,18 @@ drift_corr_func <- function(combined_df){
     miniTabstripPanel(
       miniTabPanel("Data filtering", icon = icon("map-o"),
                    miniContentPanel(
-                     fillCol(flex = c(1,NA),
-                        fillRow(flex = c(5,1),
-                          plotOutput("cycleplot", height = "100%", click = "point_click", brush = "points_brushed"),
-                          checkboxInput("drift_corr_check", label = "Drift correction", value = TRUE)),
-                     
+                     fillCol(flex = c(2,1,2),
+                          plotOutput("O_ratio_plot", height = "100%", click = "point_click", brush = "points_brushed"),
+                          fillRow(
+                            sliderInput("Date_range_selector", "Select Date Range",
+                                        min = min(as.POSIXct(combined_df$DateTime)),
+                                        max = max(as.POSIXct(combined_df$DateTime)),
+                                        value = c(min(as.POSIXct(combined_df$DateTime)), max(as.POSIXct(combined_df$DateTime)))),
+                            checkboxInput("drift_corr_check", label = "Drift correction", value = TRUE)
+                          ),
+                          plotOutput("Ip_plot", height = "100%")
                      #tableOutput("values"),
-                     sliderInput("Date_range_selector", "Select Date Range",
-                        min = min(as.POSIXct(combined_df$DateTime)),
-                        max = max(as.POSIXct(combined_df$DateTime)),
-                        value = c(min(as.POSIXct(combined_df$DateTime)), max(as.POSIXct(combined_df$DateTime))))
+
                    )),        
                    miniButtonBlock(
                      actionButton("add", "", icon = icon("thumbs-up")),
@@ -143,7 +145,7 @@ drift_corr_func <- function(combined_df){
     vals <- reactiveValues(keep = rep(TRUE, nrow(combined_df))) 
     
     
-    output$cycleplot <- renderPlot({
+    output$O_ratio_plot <- renderPlot({
       
         p <- ggplot(combined_df %>% filter("91500" == sample), aes(x = DateTime, y = O18_O16)) +
         geom_point() +
@@ -160,6 +162,16 @@ drift_corr_func <- function(combined_df){
       }
         
       else(NULL)
+    })
+    
+    output$Ip_plot <- renderPlot({
+      
+        ggplot(combined_df, aes(x = DateTime, y = Primary_current)) +
+        geom_point() +
+        geom_point(data = combined_df %>% filter_by_time(.date_var = DateTime, .start_date = as.POSIXct(input$Date_range_selector[1]), .end_date = as.POSIXct(input$Date_range_selector[2])), colour = "red") +
+        geom_point(data = combined_df[!vals$keep, , drop = FALSE], colour = "grey80")
+      
+
     })
     
 sliderValues <- reactive({
