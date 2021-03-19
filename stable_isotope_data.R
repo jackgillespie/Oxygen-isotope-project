@@ -1,12 +1,12 @@
 ## Version 0.1 Stable isotope data reduction ##
-install.packages("timetk")
+#install.packages("timetk")
 
+.libPaths("D:/R/lib2")
 library(dplyr)
 library(tidyverse)
 library(timetk)
 library(miniUI)
 library(shiny)
-
 
 ### test loop for entire folder ###
 session_label <- "ExampleOdata"
@@ -95,13 +95,14 @@ for (i in 1:length(filename)) {
 
   combined_df <- rbind(combined_df, read_row)
 }
-
-
+Sys.setenv(TZ='GMT')
+V_SMOW <- 0.0020052
 # properly name columns of dataframe and create sample column
 colnames(combined_df) <- c("Spot", "DateTime", "Primary_current", "O18_O16", "O18_O16_1se", "X_pos", "Y_pos")
 combined_df$sample <- as.factor(gsub('\\@.*','', sub('.*\\-', '', combined_df$Spot)))
 
-
+combined_df <- combined_df %>% mutate(delta18 = ((O18_O16/V_SMOW)-1)*1000)
+combined_df <- combined_df %>% mutate(delta18_1se = (O18_O16_1se/O18_O16)*1000)
 
 
 ## UI function definition
@@ -122,7 +123,8 @@ drift_corr_func <- function(combined_df){
                                         min = min(as.POSIXct(combined_df$DateTime)),
                                         max = max(as.POSIXct(combined_df$DateTime)),
                                         value = c(min(as.POSIXct(combined_df$DateTime)), max(as.POSIXct(combined_df$DateTime)))),
-                            checkboxInput("drift_corr_check", label = "Drift correction", value = TRUE)
+                            checkboxInput("drift_corr_check", label = "Drift correction", value = TRUE),
+                            textOutput(outputId = "drift_coefficients")
                           ),
                           plotOutput("Ip_plot", height = "100%")
                      #tableOutput("values"),
@@ -145,12 +147,13 @@ drift_corr_func <- function(combined_df){
     vals <- reactiveValues(keep = rep(TRUE, nrow(combined_df))) 
     
     
+    
     output$O_ratio_plot <- renderPlot({
       
-        p <- ggplot(combined_df %>% filter("91500" == sample), aes(x = DateTime, y = O18_O16)) +
+        p <- ggplot(combined_df %>% filter("91500" == sample), aes(x = DateTime, y = delta18)) +
         geom_point() +
         geom_point(data = combined_df[!vals$keep, , drop = FALSE], colour = "grey80") +
-        geom_errorbar(aes(ymin = O18_O16-(2*O18_O16_1se), ymax = O18_O16+(2*O18_O16_1se)))
+        geom_errorbar(aes(ymin = delta18-(2*delta18_1se), ymax = delta18+(2*delta18_1se)))
       
       if(input$drift_corr_check == TRUE){
         p +
@@ -164,6 +167,14 @@ drift_corr_func <- function(combined_df){
       else(NULL)
     })
     
+drift_coefficientslm <- reactive({
+    lm(delta18~as.POSIXct(DateTime), data = combined_df %>% filter_by_time(.date_var = DateTime, .start_date = as.POSIXct(input$Date_range_selector[1]), .end_date = as.POSIXct(input$Date_range_selector[2]))) 
+    })
+
+output$drift_coefficients <- renderPrint({
+  summary(drift_coefficientslm())$adj.r.squared
+  })
+
     output$Ip_plot <- renderPlot({
       
         ggplot(combined_df, aes(x = DateTime, y = Primary_current)) +
@@ -214,5 +225,4 @@ sliderValues <- reactive({
 # run UI
 drift_corr_func(combined_df)
 
-
-              
+             
