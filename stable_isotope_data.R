@@ -118,13 +118,14 @@ drift_corr_func <- function(combined_df){
                    miniContentPanel(
                      fillCol(flex = c(2,1,2),
                           plotOutput("O_ratio_plot", height = "100%", click = "point_click", brush = "points_brushed"),
-                          fillRow(
+                          fillRow(flex = c(1,2),
+                            fillCol(
+                            checkboxInput("drift_corr_check", label = "Drift correction", value = TRUE),
+                            textOutput(outputId = "drift_coefficients")),
                             sliderInput("Date_range_selector", "Select Date Range",
                                         min = min(as.POSIXct(combined_df$DateTime)),
                                         max = max(as.POSIXct(combined_df$DateTime)),
-                                        value = c(min(as.POSIXct(combined_df$DateTime)), max(as.POSIXct(combined_df$DateTime)))),
-                            checkboxInput("drift_corr_check", label = "Drift correction", value = TRUE),
-                            textOutput(outputId = "drift_coefficients")
+                                        value = c(min(as.POSIXct(combined_df$DateTime)), max(as.POSIXct(combined_df$DateTime))))
                           ),
                           plotOutput("Ip_plot", height = "100%")
                      #tableOutput("values"),
@@ -148,7 +149,7 @@ drift_corr_func <- function(combined_df){
     
     
     
-    output$O_ratio_plot <- renderPlot({
+output$O_ratio_plot <- renderPlot({
       
         p <- ggplot(combined_df %>% filter("91500" == sample), aes(x = DateTime, y = delta18)) +
         geom_point() +
@@ -167,14 +168,39 @@ drift_corr_func <- function(combined_df){
       else(NULL)
     })
     
+
+    
+    
 drift_coefficientslm <- reactive({
-    lm(delta18~as.POSIXct(DateTime), data = combined_df %>% filter_by_time(.date_var = DateTime, .start_date = as.POSIXct(input$Date_range_selector[1]), .end_date = as.POSIXct(input$Date_range_selector[2]))) 
+    lm(delta18~as.POSIXct(DateTime), data = combined_df[vals$keep, , drop = FALSE] %>% filter("91500" == sample) %>% filter_by_time(.date_var = DateTime, .start_date = as.POSIXct(input$Date_range_selector[1]), .end_date = as.POSIXct(input$Date_range_selector[2]))) 
     })
 
-output$drift_coefficients <- renderPrint({
-  summary(drift_coefficientslm())$adj.r.squared
+output$drift_coefficients <- renderText({
+  if(input$drift_corr_check == TRUE){
+  paste0("R^2 = ", round(summary(drift_coefficientslm())$adj.r.squared, digits = 3))
+  }
+  
+  else if(input$drift_corr_check == FALSE){
+  "No drift correction"
+  }
+  
+  else(NULL)
   })
 
+
+sliderValues <- reactive({
+  
+  data.frame(
+    Name = c("Start","End"),
+    Value = as.character(c(as.POSIXct(input$Date_range_selector[1]),as.POSIXct(input$Date_range_selector[2]))),
+    stringsAsFactors = FALSE)
+  
+})
+
+# Show the values in an HTML table ----
+output$values <- renderTable({
+  sliderValues()
+})
     output$Ip_plot <- renderPlot({
       
         ggplot(combined_df, aes(x = DateTime, y = Primary_current)) +
@@ -185,19 +211,7 @@ output$drift_coefficients <- renderPrint({
 
     })
     
-sliderValues <- reactive({
-      
-      data.frame(
-        Name = c("Start","End"),
-        Value = as.character(c(as.POSIXct(input$Date_range_selector[1]),as.POSIXct(input$Date_range_selector[2]))),
-        stringsAsFactors = FALSE)
-      
-    })
-    
-    # Show the values in an HTML table ----
-    output$values <- renderTable({
-      sliderValues()
-    })
+
     
     selected <- reactive({
       #nearPoints(combined_df, input$point_click, maxpoints = 1, allRows = TRUE)$selected_
@@ -225,4 +239,11 @@ sliderValues <- reactive({
 # run UI
 drift_corr_func(combined_df)
 
-             
+drift_coefficientslm <- lm(delta18~as.POSIXct(DateTime), data = combined_df %>% filter("91500" == sample) %>% filter_by_time(.date_var = DateTime, .start_date = as.POSIXct("2021-02-12 01:53:00"), .end_date = as.POSIXct("2021-02-12 7:18:00"))) 
+summary(drift_coefficientslm)
+
+
+signif(summary(drift_coefficientslm)$adj.r.squared, 3)
+summary(drift_coefficientslm)$coefficients[,1]
+
+
