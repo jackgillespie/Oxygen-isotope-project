@@ -1,18 +1,19 @@
 ## Version 0.1 Stable isotope data reduction ##
 #install.packages("timetk")
-
-.libPaths("D:/R/lib2")
+.libPaths("C:/Users/Jack/Documents/R/lib")
+install.packages("timetk")
+#.libPaths("D:/R/lib2")
 library(dplyr)
 library(tidyverse)
-library(timetk)
+library(stringr)
 library(miniUI)
 library(shiny)
-
+library(timetk)
 ### test loop for entire folder ###
 session_label <- "ExampleOdata"
 
-setwd(paste0("D:/R/O_isotope_UI/", session_label))
-#setwd(paste0("C:/Users/Jack/Documents/R/", session_label))
+#setwd(paste0("D:/R/O_isotope_UI/", session_label))
+setwd(paste0("C:/Users/Jack/Documents/R/", session_label))
 
 filename <- list.files(pattern = "*.asc")
 
